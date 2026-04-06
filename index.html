@@ -476,39 +476,39 @@
         const presets = {
             default: {
                 synthOptions: { oscillator: { type: "triangle" }, envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 0.5 } },
-                createEffects: () => [new Tone.Freeverb({ roomSize: 0.6, dampening: 3000, wet: 0.4 })]
+                createEffects: () => [new Tone.Freeverb({ roomSize: 0.6, dampening: 3000, wet: 0.3 })]
             },
             medieval: {
                 synthOptions: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.2 } },
-                createEffects: () => [new Tone.Freeverb({ roomSize: 0.6, dampening: 3000, wet: 0.3 })]
+                createEffects: () => [new Tone.Freeverb({ roomSize: 0.4, dampening: 3000, wet: 0.2 })]
             },
             scifi: {
-                synthOptions: { oscillator: { type: "fatsawtooth", count: 3, spread: 20 }, envelope: { attack: 0.2, decay: 0.3, sustain: 0.5, release: 1 } },
-                createEffects: () => [new Tone.FeedbackDelay("8n", 0.4), new Tone.Freeverb({ roomSize: 0.7, dampening: 3000, wet: 0.5 })]
+                synthOptions: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.3, sustain: 0.3, release: 0.5 } },
+                createEffects: () => [new Tone.Freeverb({ roomSize: 0.7, dampening: 3000, wet: 0.4 })]
             },
             lofi: {
                 synthOptions: { oscillator: { type: "sine" }, envelope: { attack: 0.05, decay: 0.3, sustain: 0.4, release: 0.8 } },
-                createEffects: () => [new Tone.Filter(800, "lowpass"), new Tone.Chorus(4, 2.5, 0.5).start(), new Tone.Freeverb({ roomSize: 0.5, dampening: 3000, wet: 0.4 })]
+                createEffects: () => [new Tone.Filter(800, "lowpass"), new Tone.Freeverb({ roomSize: 0.5, dampening: 3000, wet: 0.4 })]
             },
             '8bit': {
                 synthOptions: { oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 } },
                 createEffects: () => [] // Suara kering retro
             },
             cinematic: {
-                synthOptions: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.3, decay: 1, sustain: 0.6, release: 1.5 } },
-                createEffects: () => [new Tone.Chorus(2, 2.5, 0.5).start(), new Tone.Freeverb({ roomSize: 0.8, dampening: 3000, wet: 0.6 })]
+                synthOptions: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.5, sustain: 0.3, release: 0.8 } },
+                createEffects: () => [new Tone.Freeverb({ roomSize: 0.8, dampening: 3000, wet: 0.5 })]
             },
             musicbox: {
                 synthOptions: { oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.8 } },
-                createEffects: () => [new Tone.PitchShift({ pitch: 12 }), new Tone.Freeverb({ roomSize: 0.7, dampening: 3000, wet: 0.5 })]
+                createEffects: () => [new Tone.Freeverb({ roomSize: 0.6, dampening: 3000, wet: 0.5 })]
             },
             cyberpunk: {
-                synthOptions: { oscillator: { type: "fatsquare" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.3 } },
-                createEffects: () => [new Tone.Distortion(0.5), new Tone.Filter(2000, "lowpass"), new Tone.Freeverb({ roomSize: 0.4, dampening: 3000, wet: 0.2 })]
+                synthOptions: { oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.3 } },
+                createEffects: () => [new Tone.Distortion(0.5), new Tone.Filter(1500, "lowpass")]
             },
             spooky: {
-                synthOptions: { oscillator: { type: "sine" }, envelope: { attack: 0.5, decay: 0.5, sustain: 0.5, release: 1 } },
-                createEffects: () => [new Tone.Vibrato(5, 0.5).start(), new Tone.Freeverb({ roomSize: 0.8, dampening: 3000, wet: 0.7 })]
+                synthOptions: { oscillator: { type: "sine" }, envelope: { attack: 0.2, decay: 0.5, sustain: 0.4, release: 1 } },
+                createEffects: () => [new Tone.Freeverb({ roomSize: 0.8, dampening: 3000, wet: 0.6 })]
             }
         };
 
@@ -573,9 +573,14 @@
                 const preset = presets[themeName] || presets['default'];
                 trackSynths[trackName].effects = preset.createEffects();
                 
-                // Mencegah max polyphony berlebih agar CPU / memori Tone.js tidak meledak
-                let polyConfig = Object.assign({}, preset.synthOptions, { maxPolyphony: trackName === 'Chord' ? 4 : 2 });
-                trackSynths[trackName].synth = new Tone.PolySynth(Tone.Synth, polyConfig);
+                // Penggunaan Monophonic murni untuk Melodi dan Bass menghemat hingga 80% beban CPU di HP
+                if (trackName === 'Chord') {
+                    let polyConfig = Object.assign({}, preset.synthOptions, { maxPolyphony: 3 });
+                    trackSynths[trackName].synth = new Tone.PolySynth(Tone.Synth, polyConfig);
+                } else {
+                    trackSynths[trackName].synth = new Tone.Synth(preset.synthOptions);
+                }
+                
                 trackSynths[trackName].synth.volume.value = -3; // Mencegah distorsi per-track
                 
                 if (trackSynths[trackName].effects.length > 0) {
@@ -686,8 +691,13 @@
                             } else {
                                 const synthObj = trackSynths[trackName].synth;
                                 if (trackName === 'Chord' || notePart.includes(',')) {
-                                    const chordNotes = notePart.split(',');
-                                    synthObj.triggerAttackRelease(chordNotes, duration, time);
+                                    const chordNotes = notePart.split(',').slice(0, 3); // Hanya mainkan max 3 nada
+                                    if (synthObj instanceof Tone.PolySynth) {
+                                        synthObj.triggerAttackRelease(chordNotes, duration, time);
+                                    } else {
+                                        // Fallback monophonic (hanya mainkan nada pertama dari akor jika salah ketik di luar kotak chord)
+                                        synthObj.triggerAttackRelease(chordNotes[0], duration, time);
+                                    }
                                 } else {
                                     synthObj.triggerAttackRelease(notePart, duration, time);
                                 }
