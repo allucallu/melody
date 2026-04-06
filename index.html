@@ -476,19 +476,19 @@
         const presets = {
             default: {
                 synthOptions: { oscillator: { type: "triangle" }, envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 0.5 } },
-                createEffects: () => [new Tone.Reverb({ decay: 2, wet: 0.4 })]
+                createEffects: () => [new Tone.Freeverb({ roomSize: 0.6, dampening: 3000, wet: 0.4 })]
             },
             medieval: {
                 synthOptions: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.2 } },
-                createEffects: () => [new Tone.Reverb({ decay: 2, wet: 0.3 })]
+                createEffects: () => [new Tone.Freeverb({ roomSize: 0.6, dampening: 3000, wet: 0.3 })]
             },
             scifi: {
                 synthOptions: { oscillator: { type: "fatsawtooth", count: 3, spread: 20 }, envelope: { attack: 0.2, decay: 0.3, sustain: 0.5, release: 1 } },
-                createEffects: () => [new Tone.FeedbackDelay("8n", 0.4), new Tone.Reverb({ decay: 3, wet: 0.5 })]
+                createEffects: () => [new Tone.FeedbackDelay("8n", 0.4), new Tone.Freeverb({ roomSize: 0.7, dampening: 3000, wet: 0.5 })]
             },
             lofi: {
                 synthOptions: { oscillator: { type: "sine" }, envelope: { attack: 0.05, decay: 0.3, sustain: 0.4, release: 0.8 } },
-                createEffects: () => [new Tone.Filter(800, "lowpass"), new Tone.Chorus(4, 2.5, 0.5).start(), new Tone.Reverb({ decay: 1.5, wet: 0.4 })]
+                createEffects: () => [new Tone.Filter(800, "lowpass"), new Tone.Chorus(4, 2.5, 0.5).start(), new Tone.Freeverb({ roomSize: 0.5, dampening: 3000, wet: 0.4 })]
             },
             '8bit': {
                 synthOptions: { oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 } },
@@ -496,19 +496,19 @@
             },
             cinematic: {
                 synthOptions: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.3, decay: 1, sustain: 0.6, release: 1.5 } },
-                createEffects: () => [new Tone.Chorus(2, 2.5, 0.5).start(), new Tone.Reverb({ decay: 5, wet: 0.6 })]
+                createEffects: () => [new Tone.Chorus(2, 2.5, 0.5).start(), new Tone.Freeverb({ roomSize: 0.8, dampening: 3000, wet: 0.6 })]
             },
             musicbox: {
                 synthOptions: { oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.8 } },
-                createEffects: () => [new Tone.PitchShift({ pitch: 12 }), new Tone.Reverb({ decay: 3, wet: 0.5 })]
+                createEffects: () => [new Tone.PitchShift({ pitch: 12 }), new Tone.Freeverb({ roomSize: 0.7, dampening: 3000, wet: 0.5 })]
             },
             cyberpunk: {
                 synthOptions: { oscillator: { type: "fatsquare" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.3 } },
-                createEffects: () => [new Tone.Distortion(0.5), new Tone.Filter(2000, "lowpass"), new Tone.Reverb({ decay: 0.5, wet: 0.2 })]
+                createEffects: () => [new Tone.Distortion(0.5), new Tone.Filter(2000, "lowpass"), new Tone.Freeverb({ roomSize: 0.4, dampening: 3000, wet: 0.2 })]
             },
             spooky: {
                 synthOptions: { oscillator: { type: "sine" }, envelope: { attack: 0.5, decay: 0.5, sustain: 0.5, release: 1 } },
-                createEffects: () => [new Tone.Vibrato(5, 0.5).start(), new Tone.Reverb({ decay: 5, wet: 0.7 })]
+                createEffects: () => [new Tone.Vibrato(5, 0.5).start(), new Tone.Freeverb({ roomSize: 0.8, dampening: 3000, wet: 0.7 })]
             }
         };
 
@@ -610,7 +610,7 @@
                 if (trackName === 'Drum') {
                     trackSynths.Drum = createDrumSynths(options);
                 } else {
-                    trackSynths[trackName].effects = [new Tone.Reverb({ decay: 2, wet: 0.3 })];
+                    trackSynths[trackName].effects = [new Tone.Freeverb({ roomSize: 0.6, dampening: 3000, wet: 0.3 })];
                     trackSynths[trackName].synth = new Tone.PolySynth(Tone.Synth, options);
                     trackSynths[trackName].synth.chain(...trackSynths[trackName].effects, masterVolume);
                 }
@@ -632,6 +632,14 @@
         applyPresetTrack('Bass', 'cyberpunk');
         applyPresetTrack('Drum', 'acoustic');
 
+        // --- MOBILE UNLOCK ---
+        // Membuka blokir Tone AudioContext di iOS Safari ketika layar pertama disentuh
+        document.body.addEventListener('touchstart', async () => {
+            if (Tone.context.state !== 'running') {
+                await Tone.start();
+            }
+        }, { once: true });
+
         // --- PLAYBACK SYSTEM ---
         async function playMusic() {
             await Tone.start();
@@ -651,7 +659,8 @@
 
             status.innerText = "Sedang memutar musik...";
 
-            const startPlaybackTime = Tone.now() + 0.2;
+            // Memperlebar Offset Waktu demi kewarasan CPU Mobile
+            const startPlaybackTime = Tone.now() + 0.5;
             let maxDuration = 0;
 
             function scheduleTrack(inputString, trackName) {
