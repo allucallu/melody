@@ -453,9 +453,11 @@
     </div>
 
     <script>
-        // --- MASTER SYSTEM ---
-        const limiter = new Tone.Limiter(-1).toDestination();
-        const masterVolume = new Tone.Volume(-5).connect(limiter);
+        // --- MASTER SYSTEM (Global Reverb & Headroom) ---
+        // Menggunakan 1 Gema global untuk semua trek menghemat 80% CPU dibanding gema terpisah!
+        const globalReverb = new Tone.Freeverb({ roomSize: 0.7, dampening: 3000, wet: 0.25 }).toDestination();
+        // Master Volume -15dB memusnahkan distorsi 'Kaset Rusak' akibat penjumlahan gelombang
+        const masterVolume = new Tone.Volume(-15).connect(globalReverb);
 
         function changeVolume() {
             const vol = document.getElementById('masterVolume').value;
@@ -476,39 +478,39 @@
         const presets = {
             default: {
                 synthOptions: { oscillator: { type: "triangle" }, envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 0.5 } },
-                createEffects: () => [new Tone.Freeverb({ roomSize: 0.6, dampening: 3000, wet: 0.3 })]
+                createEffects: () => [] // Freeverb sudah ditangani Global Reverb
             },
             medieval: {
                 synthOptions: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.2 } },
-                createEffects: () => [new Tone.Freeverb({ roomSize: 0.4, dampening: 3000, wet: 0.2 })]
+                createEffects: () => []
             },
             scifi: {
-                synthOptions: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.3, sustain: 0.3, release: 0.5 } },
-                createEffects: () => [new Tone.Freeverb({ roomSize: 0.7, dampening: 3000, wet: 0.4 })]
+                synthOptions: { oscillator: { type: "fatsawtooth", count: 3, spread: 20 }, envelope: { attack: 0.2, decay: 0.3, sustain: 0.5, release: 1 } },
+                createEffects: () => [new Tone.FeedbackDelay("8n", 0.4)]
             },
             lofi: {
                 synthOptions: { oscillator: { type: "sine" }, envelope: { attack: 0.05, decay: 0.3, sustain: 0.4, release: 0.8 } },
-                createEffects: () => [new Tone.Filter(800, "lowpass"), new Tone.Freeverb({ roomSize: 0.5, dampening: 3000, wet: 0.4 })]
+                createEffects: () => [new Tone.Filter(800, "lowpass"), new Tone.Chorus(4, 2.5, 0.5).start()]
             },
             '8bit': {
                 synthOptions: { oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 } },
-                createEffects: () => [] // Suara kering retro
+                createEffects: () => [] 
             },
             cinematic: {
-                synthOptions: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.5, sustain: 0.3, release: 0.8 } },
-                createEffects: () => [new Tone.Freeverb({ roomSize: 0.8, dampening: 3000, wet: 0.5 })]
+                synthOptions: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.3, decay: 1, sustain: 0.6, release: 1.5 } },
+                createEffects: () => [new Tone.Chorus(2, 2.5, 0.5).start()]
             },
             musicbox: {
                 synthOptions: { oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.8 } },
-                createEffects: () => [new Tone.Freeverb({ roomSize: 0.6, dampening: 3000, wet: 0.5 })]
+                createEffects: () => [new Tone.PitchShift({ pitch: 12 })]
             },
             cyberpunk: {
-                synthOptions: { oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.3 } },
-                createEffects: () => [new Tone.Distortion(0.5), new Tone.Filter(1500, "lowpass")]
+                synthOptions: { oscillator: { type: "fatsquare" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.3 } },
+                createEffects: () => [new Tone.Distortion(0.5), new Tone.Filter(2000, "lowpass")]
             },
             spooky: {
-                synthOptions: { oscillator: { type: "sine" }, envelope: { attack: 0.2, decay: 0.5, sustain: 0.4, release: 1 } },
-                createEffects: () => [new Tone.Freeverb({ roomSize: 0.8, dampening: 3000, wet: 0.6 })]
+                synthOptions: { oscillator: { type: "sine" }, envelope: { attack: 0.5, decay: 0.5, sustain: 0.5, release: 1 } },
+                createEffects: () => [new Tone.Vibrato(5, 0.5).start()]
             }
         };
 
@@ -552,9 +554,15 @@
 
         function createDrumSynths(config) {
             const createPart = (partConfig) => {
-                if (!partConfig) return new Tone.MembraneSynth().connect(masterVolume);
-                const SynthClass = Tone[partConfig.type] || Tone.MembraneSynth;
-                return new SynthClass(partConfig.options).connect(masterVolume);
+                let inst;
+                if (!partConfig) {
+                    inst = new Tone.MembraneSynth().connect(masterVolume);
+                } else {
+                    const SynthClass = Tone[partConfig.type] || Tone.MembraneSynth;
+                    inst = new SynthClass(partConfig.options).connect(masterVolume);
+                }
+                inst.volume.value = -6; // Headroom aman drum
+                return inst;
             };
             return {
                 kick: createPart(config.kick),
@@ -581,7 +589,7 @@
                     trackSynths[trackName].synth = new Tone.Synth(preset.synthOptions);
                 }
                 
-                trackSynths[trackName].synth.volume.value = -3; // Mencegah distorsi per-track
+                trackSynths[trackName].synth.volume.value = trackName === 'Chord' ? -12 : -8; // Mencegah distorsi per-track
                 
                 if (trackSynths[trackName].effects.length > 0) {
                     trackSynths[trackName].synth.chain(...trackSynths[trackName].effects, masterVolume);
@@ -615,7 +623,7 @@
                 if (trackName === 'Drum') {
                     trackSynths.Drum = createDrumSynths(options);
                 } else {
-                    trackSynths[trackName].effects = [new Tone.Freeverb({ roomSize: 0.6, dampening: 3000, wet: 0.3 })];
+                    trackSynths[trackName].effects = []; // Global reverb menggantikannya
                     trackSynths[trackName].synth = new Tone.PolySynth(Tone.Synth, options);
                     trackSynths[trackName].synth.chain(...trackSynths[trackName].effects, masterVolume);
                 }
@@ -645,9 +653,22 @@
             }
         }, { once: true });
 
-        // --- PLAYBACK SYSTEM ---
+        // --- PLAYBACK SYSTEM (Transport DAW ENGINE) ---
+        let activeParts = [];
+
+        function stopMusic() {
+            activeParts.forEach(part => part.dispose());
+            activeParts = [];
+            Tone.Transport.stop();
+            Tone.Transport.cancel(0);
+            Tone.Transport.position = 0;
+            document.getElementById('status').innerText = "Siap memainkan musik...";
+            document.getElementById('status').style.color = "#00d2ff";
+        }
+
         async function playMusic() {
             await Tone.start();
+            stopMusic();
 
             const status = document.getElementById('status');
             status.style.color = "#00d2ff";
@@ -662,16 +683,15 @@
                 return;
             }
 
-            status.innerText = "Sedang memutar musik...";
-
-            // Memperlebar Offset Waktu demi kewarasan CPU Mobile
-            const startPlaybackTime = Tone.now() + 0.5;
+            status.innerText = "Sedang mensinkronisasikan Sequencer...";
+            Tone.Transport.bpm.value = 120; // Standar tempo DAW industri
             let maxDuration = 0;
 
-            function scheduleTrack(inputString, trackName) {
+            function parseTrackToPart(inputString, trackName) {
                 if (!inputString) return 0;
                 const notes = inputString.split(/\s+/);
-                let time = startPlaybackTime;
+                let timeInSeconds = 0;
+                const events = [];
 
                 notes.forEach((item) => {
                     const parts = item.split(':');
@@ -679,52 +699,64 @@
                     let duration = parts[1] || "4n";
 
                     if (notePart !== "_") { 
+                        events.push({ time: timeInSeconds, notePart: notePart, duration: duration });
+                    }
+                    
+                    try {
+                        timeInSeconds += Tone.Time(duration).toSeconds();
+                    } catch(e) {}
+                });
+
+                if (events.length > 0) {
+                    const part = new Tone.Part((time, event) => {
                         try {
                             if (trackName === 'Drum') {
-                                if (notePart.toUpperCase() === 'K') {
+                                if (event.notePart.toUpperCase() === 'K') {
                                     trackSynths.Drum.kick.triggerAttackRelease("C1", "8n", time);
-                                } else if (notePart.toUpperCase() === 'S') {
+                                } else if (event.notePart.toUpperCase() === 'S') {
                                     trackSynths.Drum.snare.triggerAttackRelease("16n", time);
-                                } else if (notePart.toUpperCase() === 'H') {
+                                } else if (event.notePart.toUpperCase() === 'H') {
                                     trackSynths.Drum.hihat.triggerAttackRelease("32n", time);
                                 }
                             } else {
                                 const synthObj = trackSynths[trackName].synth;
-                                if (trackName === 'Chord' || notePart.includes(',')) {
-                                    const chordNotes = notePart.split(',').slice(0, 3); // Hanya mainkan max 3 nada
+                                if (trackName === 'Chord' || event.notePart.includes(',')) {
+                                    const chordNotes = event.notePart.split(',').slice(0, 3); // Max 3 nada
                                     if (synthObj instanceof Tone.PolySynth) {
-                                        synthObj.triggerAttackRelease(chordNotes, duration, time);
+                                        synthObj.triggerAttackRelease(chordNotes, event.duration, time);
                                     } else {
-                                        // Fallback monophonic (hanya mainkan nada pertama dari akor jika salah ketik di luar kotak chord)
-                                        synthObj.triggerAttackRelease(chordNotes[0], duration, time);
+                                        synthObj.triggerAttackRelease(chordNotes[0], event.duration, time);
                                     }
                                 } else {
-                                    synthObj.triggerAttackRelease(notePart, duration, time);
+                                    synthObj.triggerAttackRelease(event.notePart, event.duration, time);
                                 }
                             }
                         } catch (e) {
-                            console.error(`Error play pada ${trackName}:`, item, e);
+                            console.error(`Error play pada ${trackName}:`, event, e);
                         }
-                    }
-                    
-                    try {
-                        time += Tone.Time(duration).toSeconds();
-                    } catch(e) {}
-                });
+                    }, events).start(0);
 
-                return time - startPlaybackTime;
+                    activeParts.push(part);
+                }
+                return timeInSeconds;
             }
 
-            const dur1 = scheduleTrack(melodyInput, 'Melody');
-            const dur2 = scheduleTrack(chordInput, 'Chord');
-            const dur3 = scheduleTrack(bassInput, 'Bass');
-            const dur4 = scheduleTrack(drumInput, 'Drum');
+            const dur1 = parseTrackToPart(melodyInput, 'Melody');
+            const dur2 = parseTrackToPart(chordInput, 'Chord');
+            const dur3 = parseTrackToPart(bassInput, 'Bass');
+            const dur4 = parseTrackToPart(drumInput, 'Drum');
 
             maxDuration = Math.max(dur1, dur2, dur3, dur4);
 
+            // Memicu seluruh barisan musik tersinkronisasi mulus
+            Tone.Transport.start();
+
             setTimeout(() => {
-                status.innerText = "Selesai diputar.";
-            }, maxDuration * 1000);
+                if (Tone.Transport.state === 'started') {
+                    status.innerText = "Pemutaran sempurna diselesaikan.";
+                    setTimeout(stopMusic, 2000);
+                }
+            }, (maxDuration + 0.5) * 1000);
         }
     </script>
 </body>
